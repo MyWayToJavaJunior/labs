@@ -4,21 +4,44 @@
 
 Containers are seeing rapid adoption due to the simplicity, consistency and portability by which developers can get their code from a laptop to production. They often provide the building blocks for creating microservices. This layer of abstraction is great for development, but not so great for operations. Containers can also be seen as blackboxes: visibility and monitoring are technologically harder to implement for containerized applications than legacy virtual or physical environments. Deploying a monitoring agent in each container is both expensive in resources, and creates dependencies that could limit the value of containers increasing complexity.
 
-Sysdig has the ability to monitor inside your containers without instrumenting each one individualy with a monitoring agent or requiring you to instrument your code. In order to offer high-level-service-wide visibility, Sysdig takes 2 paralell approaches:
+Sysdig has the ability to monitor inside your containers without instrumenting each one individualy with a monitoring agent or requiring you to instrument your code. In order to offer high-level-service-wide visibility, Sysdig takes 2 parallel approaches:
 
-- *Kernel level instrumentation*: all system calls are captured through a simple Linux kernel module providing full visibility and autodiscovery of everything being executed in the host no matter if running inside containers
+- *Kernel level instrumentation*: All system calls are captured through a simple Linux kernel module providing full visibility and autodiscovery of everything being executed in the host no matter if running inside containers
 
-- *Docker orchestration infrastructure metadata*: talking to the Docker container orchestration platform, Sysdig understands all the components that build your infrastructure and automatically can aggregate metrics and events into service level information. This allows you to understand the operability of your infrastructure from the top level down to the individuals of each process.
+- *Docker orchestration infrastructure metadata*: Talking to the Docker container orchestration platform, Sysdig understands all the components that build your infrastructure and automatically can aggregate metrics and events into service level information. This allows you to understand the operability of your infrastructure from the top level down to the individuals of each process.
 
-Then we can answer questions like: "What's the response time of my Couchbase service that's currently distributed over six servers in 2 availability zones ? What are the slowest queries?"
+Then we can answer questions like: "What's the response time of my Couchbase service that's currently distributed over six servers in 2 availability zones? What are the slowest queries?"
 
-Sysdig is available in two flavours. https://www.sysdig.org/[Sysdig opensource] is a freely available tool to gain visibility inside containers running on a single host being able to filter out from system calls up to files read or written, or network requests. ADD LINK Sysdig Cloud is best for monitoring across multiple hosts, looking at service and applications availability and performance, troubleshooting and alerting. Sysdig Cloud comes at a cost per host but you can register for a free trial from https://sysdig.com/docker-monitoring/[Sysdig Docker monitoring].
+Sysdig is available in two flavors:
+
+- https://www.sysdig.org/[Sysdig opensource] is a freely available tool to gain visibility inside containers running on a single host being able to filter out from system calls up to files read or written, or network requests. 
+
+- https://support.sysdigcloud.com/hc/en-us/articles/204865765-Overview[Sysdig Cloud] is best for monitoring across multiple hosts, looking at service and applications availability and performance, troubleshooting and alerting. Sysdig Cloud comes at a cost per host but you can register for a free trial from https://sysdig.com/docker-monitoring/[Sysdig Docker monitoring].
 
 This section of the workshop will explain how to use Sysdig Cloud to monitor Docker containers.
 
-== Deploying the Sysdig Cloud Agent
+== Setup AWS EC2 Instance
 
-In order to start capturing syscalls and forward metrics to Sysdig Cloud, we need to install a Sysdig Cloud agent in your host. We can either run the Docker container manually or since we are using Docker Compose, we can also add it to our `docker-compose.yml` file as a new service, this way the agent can be managed with docker-compose:
+Sysdig will only work on a Linux flavor. For example, this will not work on Docker for Mac or Windows. This chapter uses an Ubuntu 14.04 instance on Amazon EC2.
+
+Setup an Ubuntu instance on AWS EC2:
+
+. Start Ubuntu 14.04 LTS instance with m3.medium instance type. Make sure to add port 8091 to inbound security rules. This allows Couchbase Web Console to be accessible afterwards.
+. Login: ssh -i ~/.ssh/arun-cb-west1.pem ubuntu@<public-ip>
+. Update the install: `sudo apt-get update`
+. Install Docker: `curl -sSL https://get.docker.com/ | sh`. More detailed instructions are available at https://docs.docker.com/engine/installation/linux/ubuntu/[Get Docker for Ubuntu].
+. Enable non-root access: `sudo usermod -aG docker ubuntu`
+. Logout and log back in to enabe non-root access
+. Install Docker Compose:
++
+```
+curl -L https://github.com/docker/compose/releases/download/1.11.1/docker-compose-`uname -s`-`uname -m` > /usr/local/bin/docker-compose
+chmod +x /usr/local/bin/docker-compose
+```
+
+== Compose file
+
+Use the following `docker-compose.yml` for our application:
 
 ```
 version: '3'
@@ -47,7 +70,7 @@ services:
     network_mode: "host"
     pid: "host"
     environment:
-      ACCESS_KEY: xxxxxxxx-YOUR-ACCESS-KEY-xxxxxxxx
+      ACCESS_KEY: YOUR-ACCESS-KEY
     volumes:
       - /var/run/docker.sock:/host/var/run/docker.sock
       - /dev:/host/dev
@@ -61,20 +84,71 @@ services:
       - URL=http://web:8080/airlines/resources/airline/{,10,10123,10642,10748,10765,112,1191,9999,8888,7777,6666}
 ```
 
-Your access key will be shown on the initial wizard alongside information on how to deploy Sysdig Cloud agent in different orchestration platforms like Docker Swarm, Kubernetes, Openshift, DC/OS, Mesos, RancherOS, etc. Alternatively, the same information is available in Settings > Access Key.
+This Compose definition includes four services. `db` and `web` service are explained at https://github.com/docker/labs/blob/master/developer-tools/java/chapters/ch05-compose.adoc#configuration-file. `sysdig-agent` and `client` will be explained subsequently.
+
+== Deploying the Sysdig Cloud Agent
+
+Sign up for a trial account of Sysdig Cloud at http://sysdig.com. Check your email and activate the account.
+
+In order to start capturing syscalls and forward metrics to Sysdig Cloud, we need to install a Sysdig Cloud agent in your host. We can either run the Docker container manually or since we are using Docker Compose, `sysdig-agent` service is added to `docker-compose.yml`. This way, the agent can be managed with the Compose file definintion.
+
+Make sure to replace `YOUR-ACCESS-KEY` with the access key. This is available in `Settings`, `User Profile`, `Access Key`.
 
 Finally we can bring the agent up running:
 
 ```
-$ docker-compose up -d sysdig-agent
+docker-compose up -d sysdig-agent
+```
+
+This will show the output:
+
+```
+Creating network "sysdig_default" with the default driver
+Pulling sysdig-agent (sysdig/agent:latest)...
+latest: Pulling from sysdig/agent
+e6cfcbcab1ae: Pull complete
+9cf855f19249: Pull complete
+844a416fde02: Pull complete
+a8f43d75bd57: Pull complete
+73cdbeec4102: Pull complete
+ad27c1960543: Pull complete
+9a1603543f71: Pull complete
+809d8fc7ed08: Pull complete
+Digest: sha256:1b3994bdeb975bf06665b8d27e7a744c08ecb881408678b00789e489e8b43584
+Status: Downloaded newer image for sysdig/agent:latest
+Creating sysdig-agent
+```
+
+== Start Application
+
+Start the application:
+
+`docker-compose up -d db web`
+
+Check the status of running containers using `docker-compse ps`. This shows the output as:
+
+```
+            Name                         Command                         State                          Ports             
+-------------------------------------------------------------------------------------------------------------------------
+sysdig-agent                   /docker-entrypoint.sh          Up                                                          
+sysdig_db_1                    /entrypoint.sh /opt/couchb     Up                             11207/tcp,                   
+                               ...                                                           0.0.0.0:11210->11210/tcp,    
+                                                                                             11211/tcp, 18091/tcp,        
+                                                                                             18092/tcp, 18093/tcp,        
+                                                                                             0.0.0.0:8091->8091/tcp,      
+                                                                                             0.0.0.0:8092->8092/tcp,      
+                                                                                             0.0.0.0:8093->8093/tcp,      
+                                                                                             8094/tcp                     
+sysdig_web_1                   /opt/jboss/wildfly/bin/sta     Up                             0.0.0.0:8080->8080/tcp,      
+                               ...                                                           0.0.0.0:9990->9990/tcp       
 ```
 
 == Load Generation With a Fake Client
 
-Since we want to monitor and see how our application performs under some load, we will use Docker again to spawn a fake client that will generate some load. Very complex and customizable load generation methods exist, but in this case we want to keep things as simple as possible so we will just use a container that performs requests with `curl` inside a loop over an array of URLs we configure. In the previous `docker-compose.yaml` we also added a new client service for this task. To bring it up, we will run like before:
+Since we want to monitor and see how our application performs under some load, we will use Docker again to spawn a fake client that will generate some load. Very complex and customizable load generation methods exist, but in this case we want to keep things as simple as possible. So we will just use a container that performs requests with `curl` inside a loop over an array of URLs we configure. In the previous `docker-compose.yml` we also added a new client service for this task. To bring it up, we will run like before:
 
 ```
-$ docker-compose up -d client
+docker-compose up -d client
 ```
 
 == Full Stack Monitoring
