@@ -86,15 +86,30 @@ services:
 
 This Compose definition includes four services. `db` and `web` service are explained at https://github.com/docker/labs/blob/master/developer-tools/java/chapters/ch05-compose.adoc#configuration-file. `sysdig-agent` and `client` will be explained subsequently.
 
+== Setup Sysdig Cloud
+
+. 
+
 == Deploying the Sysdig Cloud Agent
 
 Sign up for a trial account of Sysdig Cloud at http://sysdig.com. Check your email and activate the account.
 
-In order to start capturing syscalls and forward metrics to Sysdig Cloud, we need to install a Sysdig Cloud agent in your host. We can either run the Docker container manually or since we are using Docker Compose, `sysdig-agent` service is added to `docker-compose.yml`. This way, the agent can be managed with the Compose file definintion.
+Configure Sysdig Cloud agent at http://app.sysdigcloud.com. Click on `Next>`. Select `Docker` installation method:
 
-Make sure to replace `YOUR-ACCESS-KEY` with the access key. This is available in `Settings`, `User Profile`, `Access Key`.
+.Sysdig Docker Installation
+image::sysdig-docker-installation.png[]
 
-Finally we can bring the agent up running:
+The next window shows a command to start Sysdig Cloud container on the host. It looks something like:
+
+```
+docker run -d --name sysdig-agent --privileged --net host --pid host -e ACCESS_KEY=YOUR_ACCESS_KEY -e TAGS=example_tag:example_value -v /var/run/docker.sock:/host/var/run/docker.sock -v /dev:/host/dev -v /proc:/host/proc:ro -v /boot:/host/boot:ro -v /lib/modules:/host/lib/modules:ro -v /usr:/host/usr:ro sysdig/agent
+```
+
+This has already been specified as `sysdig-agent` service in the Compose file definition shown above. This will start Sysdig Cloud agent that will capture system calls and forward metrics to Sysdig Cloud.
+
+In the Compose file definition, make sure to replace `YOUR-ACCESS-KEY` with the access key value shown in the command.
+
+Finally we can start the agent container:
 
 ```
 docker-compose up -d sysdig-agent
@@ -119,11 +134,26 @@ Status: Downloaded newer image for sysdig/agent:latest
 Creating sysdig-agent
 ```
 
+The `Next>` button in agent configuration screen is enabled. You can skip AWS configuration button and finish the installation.
+
+The default dashboard is shown:
+
+.Default Sysdig Dashboard
+image::sysdig-cloud-default-dashboard.png[]
+
 == Start Application
+
+Start the database:
+
+```
+docker-compose up -d db
+```
 
 Start the application:
 
-`docker-compose up -d db web`
+```
+docker-compose up -d web
+```
 
 Check the status of running containers using `docker-compse ps`. This shows the output as:
 
@@ -160,7 +190,11 @@ One of the most visually appealing features of Sysdig Cloud are the https://www.
 .Sysdig Topology Maps
 image::sysdig-topology.png[]
 
-You can access topology maps selecting the scope you want to display in the `Explore` tab, apply the grouping for Docker Compose and select the top level project. Then on `Views` select any of the prebuilt views `CPU Usage`, `Network Traffic` or `Response Times`. These visualization can be pinned into an existing or new dashboards. Then from the dashboard itself you can modify the scope of the topology (showing only one service for example) or the metrics displayed in the entity boxes or the links between the boxes.
+Topology maps are available in `Explore` tab. Click on `Show` to select the scope that needs to be displayed. Apply the grouping for Docker Compose and select the top level project.
+
+TODO: What here?
+
+Then on `Views` select any of the prebuilt views `CPU Usage`, `Network Traffic` or `Response Times`. These visualization can be pinned into an existing or new dashboards. Then from the dashboard itself you can modify the scope of the topology (showing only one service for example) or the metrics displayed in the entity boxes or the links between the boxes.
 
 === Infrastructure Monitoring
 
