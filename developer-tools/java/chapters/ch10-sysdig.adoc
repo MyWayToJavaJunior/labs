@@ -183,18 +183,16 @@ docker-compose up -d client
 
 == Full Stack Monitoring
 
-To understand how our Java application runs inside Docker and find out where our performance limitations are or where is something broken, we need to make use a full stack monitoring tool. This basically means being able to gain visibility from the infrastructure (either physical, virtual or cloud) through the different services we run up to the requests the users make against our application. Let's visit these layers individually and understand what are the most important resources, availability and operation metrics we should monitor.
+A better visibility into the performance limitations of our Java applications requires to make use of a full stack monitoring tool. This basically means being able to gain visibility from the infrastructure (either physical, virtual or cloud) through the different services we run up to the requests the users make against our application. Let's visit these layers individually and understand what are the most important resources, availability and operation metrics we should monitor.
 
 One of the most visually appealing features of Sysdig Cloud are the https://www.youtube.com/watch?v=N0ZJJLPuQwo[topology maps]. They are able to automatically draw the infrastructure, understanding the services, containers and the processes runing inside each container. In our case, this is defined using `docker-compose.yml`.
 
 .Sysdig Topology Maps
 image::sysdig-topology.png[]
 
-Topology maps are available in `Explore` tab. Click on `Show` to select the scope that needs to be displayed. Apply the grouping for Docker Compose and select the top level project.
+Topology maps are available in the `Explore` tab. Click on `Show` to select the scope that needs to be displayed. Apply the grouping for Docker Compose and select the top level project.
 
-TODO: What here?
-
-Then on `Views` select any of the prebuilt views `CPU Usage`, `Network Traffic` or `Response Times`. These visualization can be pinned into an existing or new dashboards. Then from the dashboard itself you can modify the scope of the topology (showing only one service for example) or the metrics displayed in the entity boxes or the links between the boxes.
+Then on `Views`, search for "`topology`", select any of the prebuilt views `CPU Usage`, `Network Traffic` or `Response Times`. These visualization can be pinned into an existing or new dashboards. Then from the dashboard itself you can modify the scope of the topology (showing only one service for example) or the metrics displayed in the entity boxes or the links between the boxes.
 
 === Infrastructure Monitoring
 
